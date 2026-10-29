@@ -1,46 +1,33 @@
 import { useState } from "react";
 import logo from "../assets/logo.png";
+import { authService } from "../services/authService";
 
-function LoginPage({ onLogin, users = [] }) {
-  const [username, setUsername] = useState("");
+function LoginPage({ onLogin, onGuestView }) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const trimmedUser = username.trim();
+    const trimmedEmail = email.trim();
     const trimmedPass = password.trim();
 
-    if (!trimmedUser || !trimmedPass) {
-      setError("Please enter both username and password.");
+    if (!trimmedEmail || !trimmedPass) {
+      setError("Please enter both email and password.");
       return;
     }
 
-    if (trimmedUser === "Admin" && trimmedPass === "Admin") {
+    try {
+      setLoading(true);
       setError("");
-      const adminUser = users.find((u) => (u.username || "").toLowerCase() === "admin") || {
-        id: 1,
-        username: "Admin",
-        role: 1,
-        status: 1
-      };
-      onLogin(adminUser);
-      return;
-    }
-
-    const matchedUser = users.find(
-      (u) => (u.username || "").toLowerCase() === trimmedUser.toLowerCase() && u.password === trimmedPass
-    );
-
-    if (matchedUser) {
-      if (matchedUser.status === 0) {
-        setError("This account is currently inactive.");
-        return;
-      }
-      setError("");
-      onLogin(matchedUser);
-    } else {
-      setError("Invalid username or password.");
+      const user = await authService.login(trimmedEmail, trimmedPass);
+      localStorage.setItem("funews_auth", JSON.stringify(user));
+      onLogin(user);
+    } catch (err) {
+      setError(err.message || "Invalid email or password.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,15 +44,15 @@ function LoginPage({ onLogin, users = [] }) {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email</label>
             <input
-              id="username"
-              type="text"
+              id="email"
+              type="email"
               className="form-input"
-              placeholder="Enter username"
-              value={username}
+              placeholder="Enter your email"
+              value={email}
               onChange={(e) => {
-                setUsername(e.target.value);
+                setEmail(e.target.value);
                 if (error) setError("");
               }}
             />
@@ -86,12 +73,24 @@ function LoginPage({ onLogin, users = [] }) {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary btn-block">
-            Sign In
+          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+            {loading ? "Signing in..." : "Sign In"}
           </button>
 
+          <div style={{ marginTop: "12px", textAlign: "center" }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-block"
+              onClick={onGuestView}
+              style={{ marginTop: "8px" }}
+            >
+              Browse Public News (Guest Mode)
+            </button>
+          </div>
+
           <div className="login-hint">
-            <span>Default credentials: <strong>Admin</strong> / <strong>Admin</strong></span>
+            <div><strong>Admin:</strong> SteveParis@FUNewsManagement.org / @1</div>
+            <div><strong>Staff:</strong> EmmaWilliam@FUNewsManagement.org / @1</div>
           </div>
         </form>
       </div>

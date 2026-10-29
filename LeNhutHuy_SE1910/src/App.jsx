@@ -48,7 +48,12 @@ function App() {
 
   const handleLogin = (user) => {
     setCurrentUser(user);
-    setActiveMenu("dashboard");
+    // Role 1 (Admin) -> users, Role 2 (Staff) -> news
+    if (user.accountRole === 1) {
+      setActiveMenu("users");
+    } else {
+      setActiveMenu("news");
+    }
   };
 
   const handleLogout = () => {
