@@ -1,3 +1,7 @@
+/**
+ * Student Name: Lê Nhựt Huy
+ * Student ID  : CE200376
+ */
 package com.lenhuthuy.funews.entity;
 
 import jakarta.persistence.*;

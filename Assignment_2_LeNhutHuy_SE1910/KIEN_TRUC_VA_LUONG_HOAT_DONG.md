@@ -1,7 +1,7 @@
-# TÀI LIỆU KIẾN TRÚC VÀ LUỒNG HOẠT ĐỘNG HỆ THỐNG
+﻿# TÀI LIỆU KIẾN TRÚC VÀ LUỒNG HOẠT ĐỘNG HỆ THỐNG
 **Học phần:** SBA301 - Single Page Application with Spring Boot  
 **Đề bài:** Assignment 02 - Implement CRUD Application with RESTful Web Service and ReactJS  
-**Sinh viên thực hiện:** Lê Nhựt Huy - MSSV: SE1910  
+**Sinh viên thực hiện:** Lê Nhựt Huy - MSSV: CE200376 (Lớp SE1910)  
 **Hệ thống:** FUNewsManagementSystem  
 
 ---
