@@ -12,7 +12,7 @@
     </parent>
 
     <groupId>fu.edu.sba301</groupId>
-    <artifactId>A2_LeNhutHuy_SE1910_BE</artifactId>
+    <artifactId>Assignment_2_LeNhutHuy_SE1910</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>A2_LeNhutHuy_SE1910_BE</name>
     <description>FUNewsManagementSystem RESTful Web Service</description>
