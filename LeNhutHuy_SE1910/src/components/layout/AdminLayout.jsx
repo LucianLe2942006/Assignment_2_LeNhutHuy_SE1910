@@ -1,12 +1,12 @@
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 
-function AdminLayout({ currentUser, onLogout, activeMenu, onSelectMenu, children }) {
+function AdminLayout({ currentUser, onLogout, activeMenu, onSelectMenu, onOpenPublicView, children }) {
   return (
     <div className="admin-layout">
-      <Header currentUser={currentUser} onLogout={onLogout} />
+      <Header currentUser={currentUser} onLogout={onLogout} onOpenPublicView={onOpenPublicView} />
       <div className="admin-body">
-        <Sidebar activeMenu={activeMenu} onSelectMenu={onSelectMenu} />
+        <Sidebar activeMenu={activeMenu} onSelectMenu={onSelectMenu} currentUser={currentUser} />
         <main className="admin-content">
           {children}
         </main>
