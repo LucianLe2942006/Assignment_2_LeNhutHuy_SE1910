@@ -1,0 +1,29 @@
+# Temporary / class reference files
+*.zip
+*.log
+slot*/
+slot */
+images/
+dataemployee.json
+cmap_sample.txt
+assignment2_*.txt
+SBA301_*.pdf
+SBA301_*.html
+Assignment 03_*.pdf
+Assignment 02_Implement*.pdf
+Assignment 02_FUMiniHotelManagement.sql
+KNOWLEDGEBASE.md
+.idea/
+.vscode/
+
+# Backend ignore
+**/target/
+.mvn/
+
+# Frontend ignore
+**/node_modules/
+**/dist/
+**/.git_backup/
+LeNhutHuy_SE1910/Composite document.pdf
+LeNhutHuy_SE1910/SBA301_Assignment01_Student_Guide.pdf
+LeNhutHuy_SE1910/HUONG_DAN_CHI_TIET_TOAN_BO_CODE.md
