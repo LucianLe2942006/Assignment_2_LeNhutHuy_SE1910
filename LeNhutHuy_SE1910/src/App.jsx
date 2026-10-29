@@ -89,11 +89,7 @@ function App() {
         />
       )}
       {activeMenu === "category" && (
-        <CategoryManagement
-          categories={categories}
-          setCategories={setCategories}
-          news={news}
-        />
+        <CategoryManagement />
       )}
       {activeMenu === "news" && (
         <NewsManagement
@@ -105,8 +101,6 @@ function App() {
       )}
       {activeMenu === "users" && (
         <UserManagement
-          users={users}
-          setUsers={setUsers}
           currentUser={currentUser}
         />
       )}

@@ -1,24 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Modal from "../components/common/Modal";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import { categoryService } from "../services/categoryService";
 
-function CategoryManagement({ categories, setCategories, news = [] }) {
+function CategoryManagement() {
+  const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [selectedCategory, setSelectedCategory] = useState(null);
 
-  const [formData, setFormData] = useState({ name: "", status: 1 });
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    status: 1
+  });
   const [formError, setFormError] = useState("");
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [relationError, setRelationError] = useState("");
+
+  const fetchCategories = async (keyword = "") => {
+    try {
+      setLoading(true);
+      const data = await categoryService.getAll(keyword);
+      setCategories(data);
+    } catch (err) {
+      setErrorMessage(err.message || "Failed to load categories.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories(searchTerm);
+  }, [searchTerm]);
 
   const handleOpenCreate = () => {
     setModalMode("create");
     setSelectedCategory(null);
-    setFormData({ name: "", status: 1 });
+    setFormData({ name: "", description: "", status: 1 });
     setFormError("");
     setIsModalOpen(true);
   };
@@ -26,7 +51,11 @@ function CategoryManagement({ categories, setCategories, news = [] }) {
   const handleOpenEdit = (category) => {
     setModalMode("update");
     setSelectedCategory(category);
-    setFormData({ name: category.name, status: category.status });
+    setFormData({
+      name: category.categoryName,
+      description: category.categoryDescription || "",
+      status: category.isActive ? 1 : 0
+    });
     setFormError("");
     setIsModalOpen(true);
   };
@@ -34,71 +63,77 @@ function CategoryManagement({ categories, setCategories, news = [] }) {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedCategory(null);
-    setFormData({ name: "", status: 1 });
+    setFormData({ name: "", description: "", status: 1 });
     setFormError("");
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     const trimmedName = formData.name.trim();
+    const trimmedDesc = formData.description.trim();
 
     if (!trimmedName) {
       setFormError("Category name is required.");
       return;
     }
-
-    if (modalMode === "create") {
-      const nextId = categories.length > 0 ? Math.max(...categories.map((c) => c.id)) + 1 : 1;
-      const newCategory = {
-        id: nextId,
-        name: trimmedName,
-        status: Number(formData.status)
-      };
-      setCategories([...categories, newCategory]);
-    } else if (modalMode === "update" && selectedCategory) {
-      const updatedCategories = categories.map((cat) =>
-        cat.id === selectedCategory.id
-          ? { ...cat, name: trimmedName, status: Number(formData.status) }
-          : cat
-      );
-      setCategories(updatedCategories);
+    if (!trimmedDesc) {
+      setFormError("Category description is required.");
+      return;
     }
 
-    handleCloseModal();
+    try {
+      if (modalMode === "create") {
+        await categoryService.create({
+          categoryName: trimmedName,
+          categoryDescription: trimmedDesc,
+          isActive: formData.status === 1
+        });
+        setSuccessMessage("Category created successfully.");
+      } else if (modalMode === "update" && selectedCategory) {
+        await categoryService.update(selectedCategory.categoryId, {
+          categoryName: trimmedName,
+          categoryDescription: trimmedDesc,
+          isActive: formData.status === 1
+        });
+        setSuccessMessage("Category updated successfully.");
+      }
+      handleCloseModal();
+      fetchCategories(searchTerm);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err) {
+      setFormError(err.message || "Operation failed.");
+    }
   };
 
   const handleOpenDelete = (category) => {
-    const linkedNews = news.filter((n) => n.categoryId === category.id);
-    if (linkedNews.length > 0) {
-      setRelationError(
-        `Cannot delete "${category.name}" because it is currently linked to ${linkedNews.length} news article(s). Please reassign or delete associated articles first.`
-      );
-      setTimeout(() => setRelationError(""), 5000);
-      return;
-    }
-    setRelationError("");
+    setErrorMessage("");
     setDeleteTarget(category);
     setIsConfirmOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteTarget) {
-      const updatedCategories = categories.filter((c) => c.id !== deleteTarget.id);
-      setCategories(updatedCategories);
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await categoryService.delete(deleteTarget.categoryId);
+      setSuccessMessage(`Category "${deleteTarget.categoryName}" deleted successfully.`);
+      setIsConfirmOpen(false);
+      setDeleteTarget(null);
+      fetchCategories(searchTerm);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err) {
+      // Rang buoc khong duoc xoa category neu co bai viet lien ket
+      setIsConfirmOpen(false);
+      setDeleteTarget(null);
+      setErrorMessage(err.message || "Failed to delete category.");
+      setTimeout(() => setErrorMessage(""), 6000);
     }
-    setIsConfirmOpen(false);
-    setDeleteTarget(null);
   };
 
   const handleCancelDelete = () => {
     setIsConfirmOpen(false);
     setDeleteTarget(null);
   };
-
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const displayedCategories = categories.filter((cat) =>
-    (cat.name || "").toLowerCase().includes(normalizedSearch)
-  );
 
   return (
     <div className="page-container">
@@ -112,7 +147,8 @@ function CategoryManagement({ categories, setCategories, news = [] }) {
         </button>
       </div>
 
-      {relationError && <div className="alert alert-error">{relationError}</div>}
+      {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
+      {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
       <div className="table-controls">
         <div className="search-bar">
@@ -141,31 +177,39 @@ function CategoryManagement({ categories, setCategories, news = [] }) {
             <tr>
               <th>ID</th>
               <th>Category Name</th>
+              <th>Description</th>
               <th>Status</th>
               <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {displayedCategories.length === 0 ? (
+            {loading ? (
               <tr>
-                <td colSpan="4" className="empty-state">
+                <td colSpan="5" className="empty-state">Loading categories...</td>
+              </tr>
+            ) : categories.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="empty-state">
                   {searchTerm
                     ? `No categories found matching "${searchTerm}".`
                     : "No categories available."}
                 </td>
               </tr>
             ) : (
-              displayedCategories.map((cat) => (
-                <tr key={cat.id}>
-                  <td>#{cat.id}</td>
-                  <td className="font-medium">{cat.name}</td>
+              categories.map((cat) => (
+                <tr key={cat.categoryId}>
+                  <td>#{cat.categoryId}</td>
+                  <td className="font-medium">{cat.categoryName}</td>
+                  <td style={{ maxWidth: "320px", fontSize: "0.875rem", color: "#666" }}>
+                    {cat.categoryDescription}
+                  </td>
                   <td>
                     <span
                       className={`badge ${
-                        cat.status === 1 ? "badge-success" : "badge-secondary"
+                        cat.isActive ? "badge-success" : "badge-secondary"
                       }`}
                     >
-                      {cat.status === 1 ? "Active" : "Inactive"}
+                      {cat.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
                   <td className="text-right table-actions">
@@ -205,10 +249,25 @@ function CategoryManagement({ categories, setCategories, news = [] }) {
               id="categoryName"
               type="text"
               className="form-input"
-              placeholder="e.g. Technology, Education"
+              placeholder="e.g. Academic News, Technology"
               value={formData.name}
               onChange={(e) => {
                 setFormData({ ...formData, name: e.target.value });
+                if (formError) setFormError("");
+              }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="categoryDescription">Description *</label>
+            <textarea
+              id="categoryDescription"
+              className="form-input"
+              rows="3"
+              placeholder="Brief description of the category..."
+              value={formData.description}
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
                 if (formError) setFormError("");
               }}
             />
@@ -247,7 +306,7 @@ function CategoryManagement({ categories, setCategories, news = [] }) {
       <ConfirmDialog
         isOpen={isConfirmOpen}
         title="Delete Category"
-        message={`Are you sure you want to delete the category "${deleteTarget?.name}"?`}
+        message={`Are you sure you want to delete the category "${deleteTarget?.categoryName}"?`}
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />

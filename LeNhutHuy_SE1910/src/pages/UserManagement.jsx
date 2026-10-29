@@ -1,32 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Modal from "../components/common/Modal";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import { accountService } from "../services/accountService";
 
-function UserManagement({ users, setUsers, currentUser }) {
+function UserManagement({ currentUser }) {
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [selectedUser, setSelectedUser] = useState(null);
 
   const [formData, setFormData] = useState({
-    username: "",
+    name: "",
+    email: "",
     password: "",
-    role: 2,
-    status: 1
+    role: 2
   });
   const [formError, setFormError] = useState("");
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
+  const fetchUsers = async (keyword = "") => {
+    try {
+      setLoading(true);
+      const data = await accountService.getAll(keyword);
+      setUsers(data);
+    } catch (err) {
+      setErrorMessage(err.message || "Failed to load accounts.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers(searchTerm);
+  }, [searchTerm]);
+
   const handleOpenCreate = () => {
     setModalMode("create");
     setSelectedUser(null);
     setFormData({
-      username: "",
+      name: "",
+      email: "",
       password: "",
-      role: 2,
-      status: 1
+      role: 2
     });
     setFormError("");
     setIsModalOpen(true);
@@ -36,10 +58,10 @@ function UserManagement({ users, setUsers, currentUser }) {
     setModalMode("update");
     setSelectedUser(user);
     setFormData({
-      username: user.username,
-      password: user.password,
-      role: user.role,
-      status: user.status
+      name: user.accountName || "",
+      email: user.accountEmail || "",
+      password: "",
+      role: user.accountRole || 2
     });
     setFormError("");
     setIsModalOpen(true);
@@ -49,75 +71,82 @@ function UserManagement({ users, setUsers, currentUser }) {
     setIsModalOpen(false);
     setSelectedUser(null);
     setFormData({
-      username: "",
+      name: "",
+      email: "",
       password: "",
-      role: 2,
-      status: 1
+      role: 2
     });
     setFormError("");
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    const trimmedUsername = formData.username.trim();
-    const trimmedPassword = formData.password.trim();
+    const trimmedName = formData.name.trim();
+    const trimmedEmail = formData.email.trim();
+    const trimmedPass = formData.password.trim();
 
-    if (!trimmedUsername || !trimmedPassword) {
-      setFormError("Both Username and Password are required.");
+    if (!trimmedName) {
+      setFormError("Account name is required.");
+      return;
+    }
+    if (!trimmedEmail) {
+      setFormError("Account email is required.");
+      return;
+    }
+    if (modalMode === "create" && !trimmedPass) {
+      setFormError("Password is required for new accounts.");
       return;
     }
 
-    const duplicateUser = users.find(
-      (u) =>
-        (u.username || "").toLowerCase() === trimmedUsername.toLowerCase() &&
-        (modalMode === "create" || u.id !== selectedUser?.id)
-    );
-
-    if (duplicateUser) {
-      setFormError("Username is already taken. Please choose another.");
-      return;
+    try {
+      if (modalMode === "create") {
+        await accountService.create({
+          accountName: trimmedName,
+          accountEmail: trimmedEmail,
+          accountPassword: trimmedPass,
+          accountRole: Number(formData.role)
+        });
+        setSuccessMessage("Account created successfully.");
+      } else if (modalMode === "update" && selectedUser) {
+        await accountService.update(selectedUser.accountId, {
+          accountName: trimmedName,
+          accountEmail: trimmedEmail,
+          accountPassword: trimmedPass || selectedUser.accountPassword,
+          accountRole: Number(formData.role)
+        });
+        setSuccessMessage("Account updated successfully.");
+      }
+      handleCloseModal();
+      fetchUsers(searchTerm);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err) {
+      setFormError(err.message || "Operation failed.");
     }
-
-    if (modalMode === "create") {
-      const nextId = users.length > 0 ? Math.max(...users.map((u) => u.id)) + 1 : 1;
-      const newUser = {
-        id: nextId,
-        username: trimmedUsername,
-        password: trimmedPassword,
-        role: Number(formData.role),
-        status: Number(formData.status)
-      };
-      setUsers([...users, newUser]);
-    } else if (modalMode === "update" && selectedUser) {
-      const updatedUsers = users.map((u) =>
-        u.id === selectedUser.id
-          ? {
-              ...u,
-              username: trimmedUsername,
-              password: trimmedPassword,
-              role: Number(formData.role),
-              status: Number(formData.status)
-            }
-          : u
-      );
-      setUsers(updatedUsers);
-    }
-
-    handleCloseModal();
   };
 
   const handleOpenDelete = (user) => {
+    setErrorMessage("");
     setDeleteTarget(user);
     setIsConfirmOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteTarget) {
-      const updatedUsers = users.filter((u) => u.id !== deleteTarget.id);
-      setUsers(updatedUsers);
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await accountService.delete(deleteTarget.accountId);
+      setSuccessMessage(`Account "${deleteTarget.accountName}" deleted successfully.`);
+      setIsConfirmOpen(false);
+      setDeleteTarget(null);
+      fetchUsers(searchTerm);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err) {
+      // Rang buoc khong duoc xoa tai khoan neu da tung tao bai viet
+      setIsConfirmOpen(false);
+      setDeleteTarget(null);
+      setErrorMessage(err.message || "Failed to delete account.");
+      setTimeout(() => setErrorMessage(""), 6000);
     }
-    setIsConfirmOpen(false);
-    setDeleteTarget(null);
   };
 
   const handleCancelDelete = () => {
@@ -125,29 +154,27 @@ function UserManagement({ users, setUsers, currentUser }) {
     setDeleteTarget(null);
   };
 
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const displayedUsers = users.filter((u) =>
-    (u.username || "").toLowerCase().includes(normalizedSearch)
-  );
-
   return (
     <div className="page-container">
       <div className="page-header">
         <div>
-          <h2>User Management</h2>
-          <p className="page-subtitle">Manage system accounts, user roles, and access status</p>
+          <h2>User Account Management</h2>
+          <p className="page-subtitle">Manage system accounts and roles (Administrator view)</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={handleOpenCreate}>
-          + Add User
+          + Add Account
         </button>
       </div>
+
+      {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
+      {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
       <div className="table-controls">
         <div className="search-bar">
           <input
             type="text"
             className="form-input search-input"
-            placeholder="Search by username..."
+            placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -168,73 +195,70 @@ function UserManagement({ users, setUsers, currentUser }) {
           <thead>
             <tr>
               <th>ID</th>
-              <th>Username</th>
+              <th>Full Name</th>
+              <th>Email</th>
               <th>Role</th>
-              <th>Status</th>
               <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {displayedUsers.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan="5" className="empty-state">Loading accounts...</td>
+              </tr>
+            ) : users.length === 0 ? (
               <tr>
                 <td colSpan="5" className="empty-state">
                   {searchTerm
-                    ? `No users found matching "${searchTerm}".`
-                    : "No users available."}
+                    ? `No accounts found matching "${searchTerm}".`
+                    : "No accounts available."}
                 </td>
               </tr>
             ) : (
-              displayedUsers.map((user) => (
-                <tr key={user.id}>
-                  <td>#{user.id}</td>
-                  <td className="font-medium">
-                    {user.username}{" "}
-                    {(currentUser?.username || "").toLowerCase() === (user.username || "").toLowerCase() && (
-                      <span className="badge badge-info">(You)</span>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        user.role === 1 ? "badge-primary" : "badge-purple"
-                      }`}
-                    >
-                      {user.role === 1 ? "Admin" : "Staff"}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        user.status === 1 ? "badge-success" : "badge-secondary"
-                      }`}
-                    >
-                      {user.status === 1 ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="text-right table-actions">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline"
-                      onClick={() => handleOpenEdit(user)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger-outline"
-                      onClick={() => handleOpenDelete(user)}
-                      disabled={(currentUser?.username || "").toLowerCase() === (user.username || "").toLowerCase()}
-                      title={
-                        (currentUser?.username || "").toLowerCase() === (user.username || "").toLowerCase()
-                          ? "Cannot delete current logged-in user"
-                          : "Delete user"
-                      }
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
+              users.map((u) => {
+                const isCurrentLoggedUser =
+                  currentUser?.accountId === u.accountId ||
+                  currentUser?.accountEmail?.toLowerCase() === u.accountEmail?.toLowerCase();
+
+                return (
+                  <tr key={u.accountId}>
+                    <td>#{u.accountId}</td>
+                    <td className="font-medium">{u.accountName}</td>
+                    <td>{u.accountEmail}</td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          u.accountRole === 1 ? "badge-primary" : "badge-secondary"
+                        }`}
+                      >
+                        {u.accountRole === 1 ? "Admin" : "Staff"}
+                      </span>
+                    </td>
+                    <td className="text-right table-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline"
+                        onClick={() => handleOpenEdit(u)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-danger-outline"
+                        onClick={() => handleOpenDelete(u)}
+                        disabled={isCurrentLoggedUser}
+                        title={
+                          isCurrentLoggedUser
+                            ? "Cannot delete current logged-in user"
+                            : "Delete account"
+                        }
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -242,31 +266,48 @@ function UserManagement({ users, setUsers, currentUser }) {
 
       <Modal
         isOpen={isModalOpen}
-        title={modalMode === "create" ? "Create User Account" : "Edit User Account"}
+        title={modalMode === "create" ? "Create Account" : "Edit Account"}
         onClose={handleCloseModal}
       >
         <form onSubmit={handleFormSubmit} className="modal-form">
           {formError && <div className="alert alert-error">{formError}</div>}
 
           <div className="form-group">
-            <label htmlFor="userUsername">Username *</label>
+            <label htmlFor="accountName">Full Name *</label>
             <input
-              id="userUsername"
+              id="accountName"
               type="text"
               className="form-input"
-              placeholder="e.g. alex_admin"
-              value={formData.username}
+              placeholder="e.g. John Doe"
+              value={formData.name}
               onChange={(e) => {
-                setFormData({ ...formData, username: e.target.value });
+                setFormData({ ...formData, name: e.target.value });
                 if (formError) setFormError("");
               }}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="userPassword">Password *</label>
+            <label htmlFor="accountEmail">Email Address *</label>
             <input
-              id="userPassword"
+              id="accountEmail"
+              type="email"
+              className="form-input"
+              placeholder="e.g. user@funews.org"
+              value={formData.email}
+              onChange={(e) => {
+                setFormData({ ...formData, email: e.target.value });
+                if (formError) setFormError("");
+              }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="accountPassword">
+              {modalMode === "create" ? "Password *" : "New Password (leave empty to keep current)"}
+            </label>
+            <input
+              id="accountPassword"
               type="password"
               className="form-input"
               placeholder="Enter password"
@@ -278,35 +319,19 @@ function UserManagement({ users, setUsers, currentUser }) {
             />
           </div>
 
-          <div className="form-row">
-            <div className="form-group form-col">
-              <label htmlFor="userRole">Role</label>
-              <select
-                id="userRole"
-                className="form-select"
-                value={formData.role}
-                onChange={(e) =>
-                  setFormData({ ...formData, role: Number(e.target.value) })
-                }
-              >
-                <option value={1}>Admin (Role 1)</option>
-                <option value={2}>Staff (Role 2)</option>
-              </select>
-            </div>
-            <div className="form-group form-col">
-              <label htmlFor="userStatus">Status</label>
-              <select
-                id="userStatus"
-                className="form-select"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: Number(e.target.value) })
-                }
-              >
-                <option value={1}>Active</option>
-                <option value={0}>Inactive</option>
-              </select>
-            </div>
+          <div className="form-group">
+            <label htmlFor="accountRole">System Role</label>
+            <select
+              id="accountRole"
+              className="form-select"
+              value={formData.role}
+              onChange={(e) =>
+                setFormData({ ...formData, role: Number(e.target.value) })
+              }
+            >
+              <option value={1}>Administrator (Role 1)</option>
+              <option value={2}>Staff Member (Role 2)</option>
+            </select>
           </div>
 
           <div className="modal-footer">
@@ -326,8 +351,8 @@ function UserManagement({ users, setUsers, currentUser }) {
 
       <ConfirmDialog
         isOpen={isConfirmOpen}
-        title="Delete User Account"
-        message={`Are you sure you want to delete the user account "${deleteTarget?.username}"?`}
+        title="Delete Account"
+        message={`Are you sure you want to delete the account "${deleteTarget?.accountName}" (${deleteTarget?.accountEmail})?`}
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
